@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Neon Face Mesh</title>
+    
+    <!-- MediaPipe සඳහා අවශ්‍ය Libraries සම්බන්ධ කිරීම -->
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+        }
+        /* වෙබ් කැමරාව පිටුපසින් තැබීම */
+        #webcam {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1); /* කැඩපතක් මෙන් පෙනීමට (Mirror effect) */
+            border-radius: 10px;
+        }
+        /* නියොන් දැල ඇඳීමට Canvas එක ඉදිරියෙන් තැබීම */
+        #output_canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="output_canvas" width="640" height="480"></canvas>
+    </div>
+
+<script>
+const videoElement = document.getElementById('webcam');
+const canvasElement = document.getElementById('output_canvas');
+const canvasCtx = canvasElement.getContext('2d');
+
+// මුහුණේ ලක්ෂ්‍යයන් හඳුනාගත් පසු Canvas එක මත නියොන් රේඛා ඇඳීමේ ශ්‍රිතය
+function onResults(results) {
+    // Canvas එක පිරිසිදු කිරීම
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    if (results.multiFaceLandmarks) {
+        for (const landmarks of results.multiFaceLandmarks) {
+            
+            // --- රූපයේ තිබූ ආකාරයට නියොන් (Neon Glow) ආලෝකය සකස් කිරීම ---
+            canvasCtx.shadowBlur = 15;                // දිලිසෙන ප්‍රමාණය (Glow width)
+            canvasCtx.shadowColor = 'rgb(0, 255, 255)'; // නියොන් වර්ණය (Cyan / Cyan blue)
+            canvasCtx.strokeStyle = 'rgb(255, 255, 255)'; // රේඛාවේ ප්‍රධාන වර්ණය (සුදු)
+            canvasCtx.lineWidth = 2;                  // රේඛාවේ මහත
+            canvasCtx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+
+            // මුහුණේ ලක්ෂ්‍යයන් එකිනෙක යා කරමින් දැල ඇඳීම
+            // 1. තිත් (Dots) ඇඳීම
+            for(let i=0; i<landmarks.length; i++) {
+                const pt = landmarks[i];
+                const x = pt.x * canvasElement.width;
+                const y = pt.y * canvasElement.height;
+                
+                canvasCtx.beginPath();
+                canvasCtx.arc(x, y, 1, 0, 2 * Math.PI);
+                canvasCtx.fill();
+            }
+            
+            // 2. රේඛා (Lines) සම්බන්ධ කිරීම - සරල ත්‍රිකෝණ දැලක් සඳහා
+            // (වැඩිදුර සම්බන්ධතා සඳහා MediaPipe FACEMESH_TESSELATION භාවිතා කළ හැක)
+        }
+    }
+}
+
+// MediaPipe Face Mesh මාදිලිය (Model) සක්‍රීය කිරීම
+const faceMesh = new FaceMesh({
+    locateFile: (file) => {
+        return `https://jsdelivr.net{file}`;
+    }
+});
+
+// AI මාදිලියේ සැකසුම් (Settings)
+faceMesh.setOptions({
+    maxNumFaces: 1,           // හඳුනාගත යුතු උපරිම මුහුණු ගණන
+    refineLandmarks: true,    // ඇස් සහ තොල් වටා ලක්ෂ්‍ය වඩාත් නිවැරදිව හඳුනා ගැනීමට
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+});
+
+faceMesh.onResults(onResults);
+
+// වෙබ් කැමරාව ක්‍රියාත්මක කර AI එකට සම්බන්ධ කිරීම
+const camera = new Camera(videoElement, {
+    onFrame: async () => {
+        await faceMesh.send({image: videoElement});
+    },
+    width: 640,
+    height: 480
+});
+camera.start();
+</script>
+
+</body>
+</html>
